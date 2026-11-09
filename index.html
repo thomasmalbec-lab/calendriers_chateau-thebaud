@@ -2,94 +2,138 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Suivi Tournée - Château-Thébaud</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carte en direct - Tournée Château-Thébaud</title>
+    
+    <!-- CSS Leaflet pour la carte -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
-        h1 { color: #8E24AA; }
-        .counters { display: flex; gap: 15px; margin-bottom: 20px; }
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #8E24AA; color: white; }
-        .badge { padding: 5px 10px; border-radius: 4px; color: white; font-weight: bold; font-size: 12px; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #8E24AA; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; }
+        h1 { margin: 0; font-size: 1.2rem; }
+        .counters { display: flex; gap: 10px; }
+        .badge { padding: 5px 10px; border-radius: 12px; font-weight: bold; font-size: 0.85rem; color: white; }
         .bg-red { background-color: #D32F2F; }
         .bg-orange { background-color: #FFA500; }
         .bg-green { background-color: #2E7D32; }
         .bg-black { background-color: #212121; }
         .bg-blue { background-color: #1976D2; }
+        
+        #map { flex: 1; width: 100%; }
+
+        /* Style personnalisable pour les marqueurs circulaires */
+        .leaflet-circle-marker { stroke-width: 2px; stroke: #ffffff; }
     </style>
 </head>
 <body>
 
-    <h1>Suivi en direct - Tournée</h1>
+    <header>
+        <h1>Tournée en direct</h1>
+        <div class="counters">
+            <span class="badge bg-red">À faire : <span id="count-red">0</span></span>
+            <span class="badge bg-orange">À repasser : <span id="count-orange">0</span></span>
+            <span class="badge bg-green">Faits : <span id="count-green">0</span></span>
+            <span class="badge bg-blue">SPV : <span id="count-blue">0</span></span>
+        </div>
+    </header>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS pour la carte -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <div class="counters">
-        <div class="card">À faire : <span id="count-red">0</span></div>
-        <div class="card">À repasser : <span id="count-orange">0</span></div>
-        <div class="card">Faits : <span id="count-green">0</span></div>
-        <div class="card">SPV : <span id="count-blue">0</span></div>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>ID Adresse / Logement</th>
-                <th>Statut actuel</th>
-            </tr>
-        </thead>
-        <tbody id="address-table-body">
-            <!-- Rempli dynamiquement par JavaScript -->
-        </tbody>
-    </table>
-
-    <!-- Import de Firebase SDK (v9 Compat) -->
+    <!-- Firebase SDK (v9 Compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
     <script>
-        // TODO: Remplacez par la configuration de votre projet Firebase (disponible dans la console Firebase)
+        // 1. Initialisation de la carte Leaflet (centrée sur Château-Thébaud)
+        const map = L.map('map').setView([47.1235, -1.4170], 14);
+
+        // Fond de carte OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Groupe pour contenir tous les marqueurs
+        const markersGroup = L.layerGroup().addTo(map);
+
+        // 2. Configuration Firebase
         const firebaseConfig = {
-            databaseURL: "https://calendriers-chateau-thebaud-default-rtdb.europe-west1.firebasedatabase.app/"
+            databaseURL: "https://calendriers-chateau-thebaud-default-rtdb.europe-west1.firebasedatabase.app/" // Remplacez par votre URL Firebase Realtime Database
         };
 
         firebase.initializeApp(firebaseConfig);
         const dbRef = firebase.database().ref('adresses');
 
-        dbRef.on('value', (snapshot) => {
-            const data = snapshot.val();
-            const tbody = document.getElementById('address-table-body');
-            tbody.innerHTML = '';
-
-            let red = 0, orange = 0, green = 0, blue = 0, black = 0;
-
-            if (data) {
-                for (const [id, statut] of Object.entries(data)) {
-                    if (statut === 'red') red++;
-                    else if (statut === 'orange') orange++;
-                    else if (statut === 'green') green++;
-                    else if (statut === 'blue') blue++;
-                    else if (statut === 'black') black++;
-
-                    let statutTexte = "À faire";
-                    let bgClass = "bg-red";
-                    if (statut === 'orange') { statutTexte = "À repasser"; bgClass = "bg-orange"; }
-                    else if (statut === 'green') { statutTexte = "Fait"; bgClass = "bg-green"; }
-                    else if (statut === 'black') { statutTexte = "Inhabité"; bgClass = "bg-black"; }
-                    else if (statut === 'blue') { statutTexte = "SPV"; bgClass = "bg-blue"; }
-
-                    const row = `<tr>
-                        <td>${id}</td>
-                        <td><span class="badge ${bgClass}">${statutTexte}</span></td>
-                    </tr>`;
-                    tbody.innerHTML += row;
-                }
+        // Correspondance des couleurs
+        function getCouleurHex(statut) {
+            switch(statut) {
+                case 'orange': return '#FFA500';
+                case 'green': return '#2E7D32';
+                case 'black': return '#212121';
+                case 'blue': return '#1976D2';
+                default: return '#D32F2F'; // red
             }
+        }
 
-            document.getElementById('count-red').innerText = red;
-            document.getElementById('count-orange').innerText = orange;
-            document.getElementById('count-green').innerText = green;
-            document.getElementById('count-blue').innerText = blue;
-        });
+        // 3. Charger le fichier JSON des adresses et synchroniser avec Firebase
+        // Assurez-vous que le fichier adresses_chateau_thebaud.json est aussi présent dans votre repo GitHub
+        fetch('app/src/main/assets/adresses_chateau_thebaud.json') 
+            .then(response => response.json())
+            .then(adressesData => {
+
+                // Écoute en temps réel des changements dans Firebase
+                dbRef.on('value', (snapshot) => {
+                    const coulesAdresses = snapshot.val() || {};
+                    markersGroup.clearLayers();
+
+                    let red = 0, orange = 0, green = 0, blue = 0;
+
+                    adressesData.forEach(item => {
+                        const id = item.id || item.id_ban_adresse;
+                        const lat = item.lat || item.latitude || (item.geometry ? item.geometry.coordinates[1] : null);
+                        const lon = item.lon || item.longitude || (item.geometry ? item.geometry.coordinates[0] : null);
+
+                        if (lat && lon) {
+                            const statut = coulesAdresses[id] || 'red';
+                            
+                            // Comptage
+                            if (statut === 'red') red++;
+                            else if (statut === 'orange') orange++;
+                            else if (statut === 'green') green++;
+                            else if (statut === 'blue') blue++;
+
+                            // Création du marqueur circulaire
+                            const marker = L.circleMarker([lat, lon], {
+                                radius: 8,
+                                fillColor: getCouleurHex(statut),
+                                color: "#FFFFFF",
+                                weight: 1.5,
+                                opacity: 1,
+                                fillOpacity: 0.85
+                            });
+
+                            // Infobulle au clic
+                            const rue = item.nom_voie || item.voie || item.rue || '';
+                            const num = item.numero || item.num || '';
+                            marker.bindPopup(`<b>${num} ${rue}</b><br>Statut : ${statut}`);
+
+                            markersGroup.addLayer(marker);
+                        }
+                    });
+
+                    // Mise à jour des compteurs en haut
+                    document.getElementById('count-red').innerText = red;
+                    document.getElementById('count-orange').innerText = orange;
+                    document.getElementById('count-green').innerText = green;
+                    document.getElementById('count-blue').innerText = blue;
+                });
+
+            })
+            .catch(err => console.error("Erreur de chargement du fichier JSON d'adresses :", err));
     </script>
 </body>
 </html>
