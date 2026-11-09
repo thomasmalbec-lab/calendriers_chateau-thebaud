@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Suivi Tournée - Château-Thébaud</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
+        h1 { color: #8E24AA; }
+        .counters { display: flex; gap: 15px; margin-bottom: 20px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #8E24AA; color: white; }
+        .badge { padding: 5px 10px; border-radius: 4px; color: white; font-weight: bold; font-size: 12px; }
+        .bg-red { background-color: #D32F2F; }
+        .bg-orange { background-color: #FFA500; }
+        .bg-green { background-color: #2E7D32; }
+        .bg-black { background-color: #212121; }
+        .bg-blue { background-color: #1976D2; }
+    </style>
+</head>
+<body>
+
+    <h1>Suivi en direct - Tournée</h1>
+    
+    <div class="counters">
+        <div class="card">À faire : <span id="count-red">0</span></div>
+        <div class="card">À repasser : <span id="count-orange">0</span></div>
+        <div class="card">Faits : <span id="count-green">0</span></div>
+        <div class="card">SPV : <span id="count-blue">0</span></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID Adresse / Logement</th>
+                <th>Statut actuel</th>
+            </tr>
+        </thead>
+        <tbody id="address-table-body">
+            <!-- Rempli dynamiquement par JavaScript -->
+        </tbody>
+    </table>
+
+    <!-- Import de Firebase SDK (v9 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <script>
+        // TODO: Remplacez par la configuration de votre projet Firebase (disponible dans la console Firebase)
+        const firebaseConfig = {
+            databaseURL: "https://calendriers-chateau-thebaud-default-rtdb.europe-west1.firebasedatabase.app/"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const dbRef = firebase.database().ref('adresses');
+
+        dbRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            const tbody = document.getElementById('address-table-body');
+            tbody.innerHTML = '';
+
+            let red = 0, orange = 0, green = 0, blue = 0, black = 0;
+
+            if (data) {
+                for (const [id, statut] of Object.entries(data)) {
+                    if (statut === 'red') red++;
+                    else if (statut === 'orange') orange++;
+                    else if (statut === 'green') green++;
+                    else if (statut === 'blue') blue++;
+                    else if (statut === 'black') black++;
+
+                    let statutTexte = "À faire";
+                    let bgClass = "bg-red";
+                    if (statut === 'orange') { statutTexte = "À repasser"; bgClass = "bg-orange"; }
+                    else if (statut === 'green') { statutTexte = "Fait"; bgClass = "bg-green"; }
+                    else if (statut === 'black') { statutTexte = "Inhabité"; bgClass = "bg-black"; }
+                    else if (statut === 'blue') { statutTexte = "SPV"; bgClass = "bg-blue"; }
+
+                    const row = `<tr>
+                        <td>${id}</td>
+                        <td><span class="badge ${bgClass}">${statutTexte}</span></td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                }
+            }
+
+            document.getElementById('count-red').innerText = red;
+            document.getElementById('count-orange').innerText = orange;
+            document.getElementById('count-green').innerText = green;
+            document.getElementById('count-blue').innerText = blue;
+        });
+    </script>
+</body>
+</html>
